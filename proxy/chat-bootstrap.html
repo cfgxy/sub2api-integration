@@ -103,7 +103,7 @@
         req.onerror = function() { reject(req.error); };
       });
       if (raw) existing = JSON.parse(raw);
-    } catch(e) { /* start fresh */ }
+    } catch(e) { console.error(e) }
 
     if (!existing || typeof existing !== 'object') existing = {};
     if (!existing.state || typeof existing.state !== 'object') existing.state = {};
@@ -122,7 +122,7 @@
     });
 
     db.close();
-    window.location.href = '/chat' + window.location.search;
+    // window.location.href = '/chat' + window.location.search;
   })();
   </script>
 </body>
