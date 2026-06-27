@@ -27,12 +27,10 @@
     var token = params.get('token');
     if (!token) { fail('No session. Please log into Sub2API first.'); return; }
 
-    // Get user profile
-    var profile;
+    // Get user profile (verify token is valid)
     try {
       var resp = await fetch('/api/v1/user/profile', { headers: { 'Authorization': 'Bearer ' + token } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      profile = (await resp.json()).data;
     } catch(e) { fail('Session expired. Please re-login.'); return; }
 
     var keyName = 'chat-key';
@@ -43,9 +41,7 @@
       var resp2 = await fetch('/api/v1/keys', { headers: { 'Authorization': 'Bearer ' + token } });
       if (resp2.ok) {
         var keys = (await resp2.json()).data.items || [];
-        for (var k of keys) {
-          if (k.name === keyName) { apiKey = k.key; break; }
-        }
+        for (var k of keys) { if (k.name === keyName) { apiKey = k.key; break; } }
       }
     } catch(e) {}
 
@@ -60,7 +56,6 @@
         if (resp3.ok) {
           apiKey = (await resp3.json()).data.key;
         } else if (resp3.status === 409) {
-          // race condition - key was created by parallel request
           var resp4 = await fetch('/api/v1/keys', { headers: { 'Authorization': 'Bearer ' + token } });
           var keys4 = (await resp4.json()).data.items || [];
           for (var k of keys4) { if (k.name === keyName) { apiKey = k.key; break; } }
@@ -70,14 +65,46 @@
       } catch(e) { fail('Failed to create API key'); return; }
     }
 
-    // Write to NextChat localStorage
+    // Write to NextChat's IndexedDB (chat-next-web / keyval store)
+    // NextChat uses idb-keyval which stores in database 'chat-next-web', store 'keyval'
+    // The 'access-control' key holds the config state, value is JSON.stringify(JSON.stringify(obj))
     try {
-      var storeKey = 'chat-next-web-store';
+      var db = await new Promise(function(resolve, reject) {
+        var req = indexedDB.open('chat-next-web', 1);
+        req.onupgradeneeded = function() {
+          req.result.createObjectStore('keyval');
+        };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror = function() { reject(req.error); };
+      });
+
+      // Read existing config
       var existing = {};
-      try { var raw = localStorage.getItem(storeKey); if (raw) existing = JSON.parse(raw); } catch(e) {}
+      try {
+        var raw = await new Promise(function(resolve, reject) {
+          var tx = db.transaction('keyval', 'readonly');
+          var req = tx.objectStore('keyval').get('access-control');
+          req.onsuccess = function() { resolve(req.result); };
+          req.onerror = function() { reject(req.error); };
+        });
+        if (raw) existing = JSON.parse(JSON.parse(raw));
+      } catch(e) {}
+
+      // Merge new values
+      existing.useCustomConfig = true;
       existing.openaiApiKey = apiKey;
-      localStorage.setItem(storeKey, JSON.stringify(existing));
-    } catch(e) { fail('Failed to save to local storage.'); return; }
+
+      // Write back: double-stringified
+      var value = JSON.stringify(JSON.stringify(existing));
+      await new Promise(function(resolve, reject) {
+        var tx = db.transaction('keyval', 'readwrite');
+        tx.objectStore('keyval').put(value, 'access-control');
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+
+      db.close();
+    } catch(e) { fail('Failed to save config.'); return; }
 
     // Go to NextChat
     window.location.href = '/chat' + window.location.search;
