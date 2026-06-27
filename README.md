@@ -5,7 +5,7 @@
 ## 架构
 
 ```
-:8000 (Caddy 反向代理)
+:80,443 (Caddy 反向代理)
 ├── /chat, /chat/*          → NextChat
 ├── /_next/*                → NextChat 静态资源
 ├── /api/config             → NextChat API
@@ -50,7 +50,7 @@ bash setup.sh
 
 ### 4. 使用
 
-浏览器访问 `http://<你的IP>:8000`
+浏览器访问 `http://<你的IP>`
 
 1. 用管理员账号登录（默认 `admin@example.com` / `admin123456`）
 2. 首次登录需接受合规声明
@@ -68,7 +68,7 @@ bash setup.sh
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `EXTERNAL_URL` | `http://localhost` | 外部访问地址 |
-| `HTTP_PORT` | `8000` | 对外端口 |
+| `HTTP_PORT` | `80`, `443` | 对外端口 |
 | `POSTGRES_USER` | `sub2api` | 数据库用户 |
 | `POSTGRES_PASSWORD` | `sub2api_pg_dev` | 数据库密码 |
 | `SUB2API_ADMIN_EMAIL` | `admin@example.com` | 管理员邮箱 |

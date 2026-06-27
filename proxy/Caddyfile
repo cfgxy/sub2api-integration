@@ -1,38 +1,63 @@
 {
     admin off
+    auto_https disable_redirects
 }
 
-:8000 {
+# =============================================================================
+# Main site — listens on :8000 (dev) and SITE_DOMAIN (production)
+# API_DOMAIN 通过 host 匹配器嵌入同一块中，避免空 env 时语法错误
+# =============================================================================
+http://{$SITE_DOMAIN}, http://{$API_DOMAIN}, https://{$SITE_DOMAIN}, https://{$API_DOMAIN} {
+    # =========================================================================
+    # 静态资源长期缓存
+    # =========================================================================
+    @static {
+        path /assets/*
+        path /logo.png
+        path /favicon.ico
+    }
+    header @static {
+        Cache-Control "public, max-age=31536000, immutable"
+        -Pragma
+        -Expires
+    }
+
+    # =========================================================================
+    # CORS
+    # =========================================================================
     header {
         Access-Control-Allow-Origin *
         Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
         Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
         Access-Control-Max-Age 86400
+        -Server
     }
-
     @options {
         method OPTIONS
     }
     respond @options 204
 
-    # Chat bootstrap static page
+    # =========================================================================
+    # Chat bootstrap 引导页
+    # =========================================================================
     handle /chat-bootstrap* {
         root * /etc/caddy
         rewrite /chat-bootstrap /chat-bootstrap.html
         file_server
     }
 
+    # =========================================================================
+    # NextChat 路由
+    # =========================================================================
     handle /_next/* {
         reverse_proxy {$NEXTCHAT_HOST}
     }
-
     handle /api/config {
         reverse_proxy {$NEXTCHAT_HOST}
     }
     handle /api/openai/* {
         reverse_proxy {$NEXTCHAT_HOST}
     }
-
     handle_path /chat/* {
         rewrite * /{path.relative}
         reverse_proxy {$NEXTCHAT_HOST}
@@ -41,20 +66,93 @@
         reverse_proxy {$NEXTCHAT_HOST}
     }
 
+    # =========================================================================
+    # Sub2API 路由
+    # =========================================================================
     handle /api/* {
-        reverse_proxy {$SUB2API_HOST}
+        reverse_proxy {$SUB2API_HOST} {
+            health_uri /health
+            health_interval 30s
+            health_timeout 10s
+            health_status 200
+            lb_policy round_robin
+            lb_try_duration 5s
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            transport http {
+                keepalive 120s
+                keepalive_idle_conns 256
+                read_buffer 16KB
+                write_buffer 16KB
+                compression off
+            }
+            fail_duration 30s
+            max_fails 3
+            unhealthy_status 500 502 503 504
+        }
     }
-
     handle /v1/* {
         reverse_proxy {$SUB2API_HOST}
     }
-
     handle {
-        reverse_proxy {$SUB2API_HOST}
+        reverse_proxy {$SUB2API_HOST} {
+            health_uri /health
+            health_interval 30s
+            health_timeout 10s
+            health_status 200
+            lb_policy round_robin
+            lb_try_duration 5s
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            transport http {
+                keepalive 120s
+                keepalive_idle_conns 256
+                read_buffer 16KB
+                write_buffer 16KB
+                compression off
+            }
+            fail_duration 30s
+            max_fails 3
+            unhealthy_status 500 502 503 504
+        }
     }
 
+    # =========================================================================
+    # 压缩
+    # =========================================================================
+    encode {
+        zstd
+        gzip 6
+        minimum_length 256
+        match {
+            header Content-Type text/*
+            header Content-Type application/json*
+            header Content-Type application/javascript*
+            header Content-Type application/xml*
+        }
+    }
+
+    # =========================================================================
+    # 请求大小限制
+    # =========================================================================
+    request_body {
+        max_size 100MB
+    }
+
+    # =========================================================================
+    # 日志
+    # =========================================================================
     log {
-        output file /data/access.8000.log
+        output file /data/access.log {
+            roll_size 50mb
+            roll_keep 10
+            roll_keep_for 720h
+        }
         format json
+        level INFO
     }
 }

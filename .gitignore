@@ -1,5 +1,9 @@
 .env
 data/
+caddy_config/
+caddy_data/
+redis_data/
+postgres_data/
 upstreams/
 scripts/
 *.pyc
