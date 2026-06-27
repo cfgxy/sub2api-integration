@@ -1,0 +1,128 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: integrated-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres-init:/docker-entrypoint-initdb.d:ro
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sub2api}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sub2api_pg_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-sub2api}
+      EXTERNAL_URL: ${EXTERNAL_URL:-http://localhost}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - integration-net
+
+  redis:
+    image: redis:8-alpine
+    container_name: integrated-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - integration-net
+
+  sub2api:
+    image: ${SUB2API_IMAGE:-weishaw/sub2api:latest}
+    container_name: integrated-sub2api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - sub2api_data:/app/data
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      SERVER_MODE: release
+      RUN_MODE: standard
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER:-sub2api}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-sub2api_pg_dev}
+      DATABASE_DBNAME: ${POSTGRES_DB:-sub2api}
+      DATABASE_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      ADMIN_EMAIL: ${SUB2API_ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${SUB2API_ADMIN_PASSWORD:-admin123456}
+      JWT_SECRET: ${JWT_SECRET:-}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
+      TZ: Asia/Shanghai
+      EXTERNAL_URL: ${EXTERNAL_URL:-http://localhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - integration-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nextchat:
+    image: ${NEXTCHAT_IMAGE:-yidadaa/chatgpt-next-web}
+    container_name: integrated-nextchat
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      OPENAI_API_KEY: placeholder
+      CODE: ${NEXTCHAT_CODE:-}
+      BASE_URL: http://sub2api:8080
+      HIDE_USER_API_KEY: 1
+      DISABLE_GPT4: 0
+    depends_on:
+      sub2api:
+        condition: service_healthy
+    networks:
+      - integration-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: integrated-caddy
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+    volumes:
+      - ./proxy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      SUB2API_HOST: sub2api:8080
+      NEXTCHAT_HOST: nextchat:3000
+    depends_on:
+      - sub2api
+      - nextchat
+    networks:
+      - integration-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  sub2api_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  integration-net:
+    driver: bridge

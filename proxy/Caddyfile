@@ -1,0 +1,60 @@
+{
+    admin off
+}
+
+:8000 {
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+        Access-Control-Max-Age 86400
+    }
+
+    @options {
+        method OPTIONS
+    }
+    respond @options 204
+
+    # Chat bootstrap static page
+    handle /chat-bootstrap* {
+        root * /etc/caddy
+        rewrite /chat-bootstrap /chat-bootstrap.html
+        file_server
+    }
+
+    handle /_next/* {
+        reverse_proxy {$NEXTCHAT_HOST}
+    }
+
+    handle /api/config {
+        reverse_proxy {$NEXTCHAT_HOST}
+    }
+    handle /api/openai/* {
+        reverse_proxy {$NEXTCHAT_HOST}
+    }
+
+    handle_path /chat/* {
+        rewrite * /{path.relative}
+        reverse_proxy {$NEXTCHAT_HOST}
+    }
+    handle_path /chat {
+        reverse_proxy {$NEXTCHAT_HOST}
+    }
+
+    handle /api/* {
+        reverse_proxy {$SUB2API_HOST}
+    }
+
+    handle /v1/* {
+        reverse_proxy {$SUB2API_HOST}
+    }
+
+    handle {
+        reverse_proxy {$SUB2API_HOST}
+    }
+
+    log {
+        output file /data/access.8000.log
+        format json
+    }
+}

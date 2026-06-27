@@ -1,0 +1,6 @@
+.env
+data/
+upstreams/
+scripts/
+*.pyc
+__pycache__/
