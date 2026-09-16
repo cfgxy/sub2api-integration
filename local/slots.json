@@ -1,0 +1,18 @@
+{
+  "schema": "sub2api.local-slots.v1",
+  "slots": {
+    "dev1": {"kind": "dev", "index": 1},
+    "dev2": {"kind": "dev", "index": 2},
+    "dev3": {"kind": "dev", "index": 3},
+    "qa1":  {"kind": "qa",  "index": 4},
+    "qa2":  {"kind": "qa",  "index": 5},
+    "qa3":  {"kind": "qa",  "index": 6}
+  },
+  "port_base": {
+    "app": 18100,
+    "postgres": 15400,
+    "redis": 16400,
+    "minio_api": 19100,
+    "minio_console": 19200
+  }
+}

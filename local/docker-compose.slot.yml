@@ -1,0 +1,137 @@
+# =============================================================================
+# Sub2API 单槽位 Compose 模板
+# =============================================================================
+# 不要直接 `docker compose -f` 这个文件手工操作槽位——一律通过
+# `local/worktree.sh <slot> <action>` 入口，脚本负责生成对应槽位的
+# `.env`（项目名、端口、卷名、镜像）并在写入前重验 ownership。
+# 直接操作本文件视为违规路径（见 local/HANDOFF.md）。
+# =============================================================================
+
+services:
+  app:
+    image: ${SLOT_APP_IMAGE}
+    container_name: ${SLOT_APP_CONTAINER}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SLOT_APP_PORT}:8080"
+    volumes:
+      - app_data:/app/data
+    environment:
+      - AUTO_SETUP=true
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${SLOT_POSTGRES_USER}
+      - DATABASE_PASSWORD=${SLOT_POSTGRES_PASSWORD}
+      - DATABASE_DBNAME=${SLOT_POSTGRES_DB}
+      - DATABASE_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${SLOT_REDIS_PASSWORD}
+      - REDIS_DB=0
+      - JWT_SECRET=${SLOT_JWT_SECRET}
+      - TOTP_ENCRYPTION_KEY=${SLOT_TOTP_ENCRYPTION_KEY}
+      - TZ=Asia/Shanghai
+      - OBJECT_STORAGE_ENDPOINT=minio:9000
+      - OBJECT_STORAGE_ACCESS_KEY=${SLOT_MINIO_ROOT_USER}
+      - OBJECT_STORAGE_SECRET_KEY=${SLOT_MINIO_ROOT_PASSWORD}
+      - OBJECT_STORAGE_BUCKET=${SLOT_MINIO_BUCKET}
+      - OBJECT_STORAGE_USE_SSL=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - slot-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${SLOT_POSTGRES_CONTAINER}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SLOT_POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    environment:
+      - POSTGRES_USER=${SLOT_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${SLOT_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${SLOT_POSTGRES_DB}
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=Asia/Shanghai
+    networks:
+      - slot-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SLOT_POSTGRES_USER} -d ${SLOT_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    container_name: ${SLOT_REDIS_CONTAINER}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SLOT_REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      sh -c 'redis-server --save 60 1 --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    environment:
+      - REDIS_PASSWORD=${SLOT_REDIS_PASSWORD}
+      - TZ=Asia/Shanghai
+    networks:
+      - slot-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${SLOT_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  minio:
+    image: minio/minio:latest
+    container_name: ${SLOT_MINIO_CONTAINER}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SLOT_MINIO_API_PORT}:9000"
+      - "127.0.0.1:${SLOT_MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${SLOT_MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${SLOT_MINIO_ROOT_PASSWORD}
+      - TZ=Asia/Shanghai
+    command: server /data --console-address ":9001"
+    networks:
+      - slot-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  app_data:
+    name: ${SLOT_APP_DATA_VOLUME}
+  postgres_data:
+    name: ${SLOT_POSTGRES_DATA_VOLUME}
+  redis_data:
+    name: ${SLOT_REDIS_DATA_VOLUME}
+  minio_data:
+    name: ${SLOT_MINIO_DATA_VOLUME}
+
+networks:
+  slot-net:
+    driver: bridge
