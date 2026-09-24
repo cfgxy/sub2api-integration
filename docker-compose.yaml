@@ -221,8 +221,6 @@ services:
     image: ${NEXTCHAT_IMAGE:-yidadaa/chatgpt-next-web}
     container_name: nextchat
     restart: unless-stopped
-    expose:
-      - "3000"
     environment:
       - OPENAI_API_KEY=placeholder
       - CODE=${NEXTCHAT_CODE:-}
