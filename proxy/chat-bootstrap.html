@@ -35,13 +35,15 @@
     var keyName = 'chat-key';
     var apiKey = null;
 
-    try {
-      var resp2 = await fetch('/api/v1/keys', { headers: { 'Authorization': 'Bearer ' + token } });
-      if (resp2.ok) {
-        var keys = (await resp2.json()).data.items || [];
-        for (var k of keys) { if (k.name === keyName) { apiKey = k.key; break; } }
-      }
-    } catch(e) {}
+    async function findChatKey(token) {
+      var resp = await fetch('/api/v1/keys', { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var keys = (await resp.json()).data.items || [];
+      for (var k of keys) { if (k.name === keyName) { return k.key; } }
+      return null;
+    }
+
+    try { apiKey = await findChatKey(token); } catch(e) {}
 
     if (!apiKey) {
       try {
@@ -53,9 +55,7 @@
         if (resp3.ok) {
           apiKey = (await resp3.json()).data.key;
         } else if (resp3.status === 409) {
-          var resp4 = await fetch('/api/v1/keys', { headers: { 'Authorization': 'Bearer ' + token } });
-          var keys4 = (await resp4.json()).data.items || [];
-          for (var k of keys4) { if (k.name === keyName) { apiKey = k.key; break; } }
+          apiKey = await findChatKey(token);
         } else {
           throw new Error('HTTP ' + resp3.status);
         }
