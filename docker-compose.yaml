@@ -174,10 +174,10 @@ services:
       - sub2api-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 12
+      start_period: 5s
     # 注意：不暴露端口到宿主机，应用通过内部网络连接
     # 如需调试，可临时添加：ports: ["127.0.0.1:5433:5432"]
 
@@ -209,9 +209,9 @@ services:
       - sub2api-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
       start_period: 5s
 
   # ===========================================================================
@@ -221,8 +221,6 @@ services:
     image: ${NEXTCHAT_IMAGE:-yidadaa/chatgpt-next-web}
     container_name: nextchat
     restart: unless-stopped
-    expose:
-      - "3000"
     environment:
       - OPENAI_API_KEY=placeholder
       - CODE=${NEXTCHAT_CODE:-}

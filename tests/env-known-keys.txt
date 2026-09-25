@@ -1,0 +1,24 @@
+# SHAN-356 T1: 集成仓 .env.example 注释键登记表（env 键守卫 known-keys）
+# 格式: <ENV键> <viper点分键|消费方> <生效形态说明>
+# 口径: 注释键 = 集成 compose 未向容器插值、仅特定部署形态生效的键（SHAN-342 审计 A 组）。
+#       任何取消注释的键必须能映射到本表一行；新键入样例必须同步登记，防幽灵键复发。
+LOG_LEVEL log.level 后端 viper 直读; 集成 compose 不插值, 仅独立部署后端生效
+LOG_FORMAT log.format 后端 viper 直读; 同上
+LOG_SERVICE_NAME log.service_name 后端 viper 直读; 同上
+LOG_ENV log.env 后端 viper 直读; 同上
+LOG_CALLER log.caller 后端 viper 直读; 同上
+LOG_OUTPUT_TO_STDOUT log.output_to_stdout 后端 viper 直读; 同上
+LOG_OUTPUT_TO_FILE log.output_to_file 后端 viper 直读; 同上
+SERVER_MAX_REQUEST_BODY_SIZE server.max_request_body_size 后端 viper 直读; 同上
+GATEWAY_MAX_BODY_SIZE gateway.max_body_size 后端 viper 直读; 同上
+SERVER_H2C_ENABLED server.h2c.enabled 后端 viper 直读; 同上
+POSTGRES_USER - compose 健康检查/setup.sh 插值(带默认 sub2api), 透传 postgres 容器
+POSTGRES_PASSWORD compose 插值(:? 必填); 样例注释态=要求部署者手填, 不给默认样例值
+POSTGRES_DB compose 健康检查/setup.sh 插值(带默认 sub2api), 透传 postgres 容器
+REDIS_PASSWORD compose 插值(redis --requirepass); 样例注释态=部署者手填
+ADMIN_EMAIL setup.sh 初始化管理员; 非容器插值
+ADMIN_PASSWORD setup.sh 初始化管理员; 非容器插值
+JWT_SECRET compose 插值(sub2api); 样例注释态=部署者手填密钥
+TOTP_ENCRYPTION_KEY compose 插值(sub2api); 样例注释态=部署者手填密钥
+NEXTCHAT_CODE nextchat 容器环境; 仅启用 nextchat 形态时取消注释
+UPDATE_PROXY_URL update 服务代理; 仅自动更新形态生效
